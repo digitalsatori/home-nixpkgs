@@ -13,7 +13,6 @@ local cmd = vim.cmd
 -- - Flesh out custom colorscheme
 --   - Revisit Pmenu highlights:
 --   - Experiment with `Diff` highlights to look more like `delta`'s output.
---   - Set `g:terminal_color` values.
 --   - Decide on whether I want to include a bunch of language specific highlights
 --   - Figure out what to do with `tree-sitter` highlights.
 --   - Stretch
@@ -30,8 +29,6 @@ local cmd = vim.cmd
 -- - Other
 --   - Figure out how to get Lua LSP to be aware Nvim plugins. Why aren't they on `package.path`?
 --   - Play around with `tree-sitter`.
---   - Look into replacing floaterm-vim with vim-toggleterm.lua.
-
 
 -- Basic Vim Config --------------------------------------------------------------------------------
 
@@ -82,20 +79,24 @@ end
 
 -- Set UI related options
 o.termguicolors   = true
-o.showmode        = false -- don't show -- INSERT -- etc.
-wo.colorcolumn    = '100' -- show column boarder
-wo.number         = true  -- display numberline
-wo.relativenumber = true  -- relative line numbers
-wo.signcolumn     = 'yes' -- always have signcolumn open to avoid thing shifting around all the time
+o.showmode        = false    -- don't show -- INSERT -- etc.
+wo.colorcolumn    = '100'    -- show column boarder
+wo.number         = true     -- display numberline
+wo.relativenumber = true     -- relative line numbers
+wo.cursorline     = true     -- highlight current line
+wo.cursorlineopt  = 'number' -- only highlight the number of the cursorline
+wo.signcolumn     = 'yes'    -- always have signcolumn open to avoid thing shifting around all the time
 o.fillchars       = 'stl: ,stlnc: ,vert:·,eob: ' -- No '~' on lines after end of file, other stuff
 
 -- Set colorscheme
-require'malo.theme'.extraLushSpecs = {
-  'lush_theme.malo.bufferline-nvim',
-  'lush_theme.malo.statusline',
-  'lush_theme.malo.telescope-nvim',
-}
-cmd 'colorscheme malo'
+if g.vscode == nil then
+  require'malo.theme'.extraLushSpecs = {
+    'lush_theme.malo.bufferline-nvim',
+    'lush_theme.malo.statusline',
+    'lush_theme.malo.telescope-nvim',
+  }
+  cmd 'colorscheme malo'
+end
 
 
 -- Terminal ----------------------------------------------------------------------------------------
@@ -126,7 +127,7 @@ wk.setup { plugins = { spelling = { enabled = true } } }
 
 -- Spaced prefiexd in Normal mode
 wk.register ({
-  [' '] = { '<Cmd>packadd vim-floaterm | FloatermToggle<CR>', 'Toggle floating terminal' },
+  [' '] = { '<Cmd>exe v:count1 . "ToggleTerm"<CR>', 'Toggle floating terminal' },
 
   -- Tabs
   t = {
@@ -205,7 +206,7 @@ wk.register ({
       s = { '<Cmd>Telescope git_status<CR>'  , 'Status'         },
       c = { '<Cmd>Telescope git_commits<CR>' , 'Commits'        },
       C = { '<Cmd>Telescope git_commits<CR>' , 'Buffer commits' },
-      b = { '<Cmd>Telescope git_branches<CR>' , 'Branches'       },
+      b = { '<Cmd>Telescope git_branches<CR>' , 'Branches'      },
     },
     -- Other
     v = { '<Cmd>!gh repo view --web<CR>' , 'View on GitHub' },
@@ -214,15 +215,16 @@ wk.register ({
   -- Language server
   l = {
     name = '+LSP',
-    h = { '<Cmd>Lspsaga hover_doc<CR>'            , 'Hover'                   },
-    d = { vim.lsp.buf.definition                  , 'Jump to definition'      },
-    D = { vim.lsp.buf.declaration                 , 'Jump to declaration'     },
-    a = { '<Cmd>Lspsaga code_action<CR>'          , 'Code action'             },
-    f = { vim.lsp.buf.formatting                  , 'Format'                  },
-    r = { '<Cmd>Lspsaga rename<CR>'               , 'Rename'                  },
-    t = { vim.lsp.buf.type_definition             , 'Jump to type definition' },
-    n = { '<Cmd>Lspsaga diagnostic_jump_next<CR>' , 'Jump to next diagnostic' },
-    N = { '<Cmd>Lspsaga diagnostic_jump_prev<CR>' , 'Jump to prev diagnostic' },
+    h = { vim.lsp.buf.hover               , 'Hover'                   },
+    d = { vim.lsp.buf.definition          , 'Jump to definition'      },
+    D = { vim.lsp.buf.declaration         , 'Jump to declaration'     },
+    ca = { vim.lsp.buf.code_action        , 'Code action'             },
+    cl = { vim.lsp.codelens.run           , 'Code lens'               },
+    f = { vim.lsp.buf.format              , 'Format'                  },
+    r = { vim.lsp.buf.rename              , 'Rename'                  },
+    t = { vim.lsp.buf.type_definition     , 'Jump to type definition' },
+    n = { function() vim.diagnostic.goto_next({float = false}) end, 'Jump to next diagnostic' },
+    N = { function() vim.diagnostic.goto_prev({float = false}) end, 'Jump to next diagnostic' },
     l = {
       name = '+Lists',
       a = { '<Cmd>Telescope lsp_code_actions<CR>'       , 'Code actions'         },
@@ -262,7 +264,7 @@ wk.register ({
       t = { '<Cmd>Telescope filetypes<CR>'       , 'Filetypes'       },
     },
     s = { function() require'telescope.builtin'.symbols(require'telescope.themes'.get_dropdown({sources = {'emoji', 'math'}})) end, 'Symbols' },
-    z = { function() require'telescope'.extensions.z.list({cmd = {'fish', '-c', 'zq -ls'}}) end, 'Z' },
+    z = { '<Cmd>Telescope zoxide list<CR>', 'Z' },
     ['?'] = { '<Cmd>Telescope help_tags<CR>', 'Vim help' },
   }
 
@@ -272,6 +274,6 @@ wk.register ({
 wk.register ({
   l = {
     name = '+LSP',
-    a = { ':<C-U>Lspsaga range_code_action<CR>' , 'Code action (range)' , mode = 'v' },
+    a = { vim.lsp.buf.range_code_action , 'Code action (range)' , mode = 'v' },
   },
 }, { prefix = ' ' })

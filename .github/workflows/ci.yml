@@ -16,21 +16,21 @@ jobs:
 
   build-macos-env:
     name: Build/cache macOS Nix env
-    runs-on: macos-latest
+    runs-on: macos-14
 
     steps:
 
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install Nix
-      uses: cachix/install-nix-action@v16
+      uses: cachix/install-nix-action@v27
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup Cachix
-      uses: cachix/cachix-action@v10
+      uses: cachix/cachix-action@v15
       with:
         name: malo
         signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
@@ -47,11 +47,9 @@ jobs:
         /System/Library/Filesystems/apfs.fs/Contents/Resources/apfs.util -t &>/dev/null || true
         # Prevent conflict between Cachix installed by workflow and the one installed in the config
         nix-env --set-flag priority 1 cachix
-        # Build and switch to bootstrap config
-        nix build .#darwinConfigurations.bootstrap-x86.system
-        ./result/sw/bin/darwin-rebuild switch --flake .#bootstrap-x86
-        # Build and switch to full config
-        /run/current-system/sw/bin/fish -c 'darwin-rebuild switch --flake .#githubCI'
+        # Build and switch to config
+        nix build .#darwinConfigurations.githubCI.system
+        ./result/sw/bin/darwin-rebuild switch --flake .#githubCI
 
     - name: If scheduled, push commit with updated inputs
       if: ${{ github.event_name == 'schedule' && success() }}
@@ -69,23 +67,24 @@ jobs:
     steps:
 
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install Nix
-      uses: cachix/install-nix-action@v16
+      uses: cachix/install-nix-action@v27
       with:
         extra_nix_config: |
           access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
 
     - name: Setup Cachix
-      uses: cachix/cachix-action@v10
+      uses: cachix/cachix-action@v15
       with:
         name: malo
         signingKey: ${{ secrets.CACHIX_SIGNING_KEY }}
+        useDaemon: false
 
     - name: Build and switch to home-manager env
       run: |
         # Prevent conflict between Cachix installed by workflow and the one installed in the config
         nix-env --set-flag priority 1 cachix
         # Build and switch to home-manager env
-        nix build .#cloudVM.activationPackage; ./result/activate
+        nix build .#homeConfigurations.runner.activationPackage; ./result/activate
