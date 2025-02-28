@@ -1,34 +1,49 @@
-{ config, lib, pkgs, ... }:
-
-with lib;
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 
 let
+  inherit (lib)
+    mkIf
+    mkOption
+    optionalString
+    types
+    ;
+
   cfg = config.programs.neovim.extras;
   nvr = "${pkgs.neovim-remote}/bin/nvr";
 
-  shellConfig = with cfg.nvrAliases; ''
-    # START programs.neovim.extras config ----------------------------------------------------------
+  shellConfig =
+    with cfg.nvrAliases;
+    ''
+      # START programs.neovim.extras config ----------------------------------------------------------
 
-  '' + optionalString cfg.termBufferAutoChangeDir ''
-    # If shell is running in a Neovim terminal buffer, set the PWD of the buffer to `$PWD`.
-    if test -n "$NVIM_LISTEN_ADDRESS"; nvim-sync-term-buffer-pwd; end
+    ''
+    + optionalString cfg.termBufferAutoChangeDir ''
+      # If shell is running in a Neovim terminal buffer, set the PWD of the buffer to `$PWD`.
+      if test -n "$NVIM"; nvim-sync-term-buffer-pwd; end
 
-  '' + optionalString cfg.nvrAliases.enable ''
-    # Neovim Remote aliases
-    if test -n "$NVIM_LISTEN_ADDRESS"
-      alias ${edit} "${nvr}"
-      alias ${split} "${nvr} -o"
-      alias ${vsplit} "${nvr} -O"
-      alias ${tabedit} "${nvr} --remote-tab"
-      alias ${nvim} "command nvim"
-      alias nvim "echo 'This shell is running in a Neovim termainal buffer. Use \'${nvim}\' to a nested instance of Neovim, otherwise use ${edit}, ${split}, ${vsplit}, or ${tabedit} to open files in the this Neovim instance.'"
-    else
-      alias ${edit} "nvim"
-    end
+    ''
+    + optionalString cfg.nvrAliases.enable ''
+      # Neovim Remote aliases
+      if test -n "$NVIM"
+        alias ${edit} "${nvr}"
+        alias ${split} "${nvr} -o"
+        alias ${vsplit} "${nvr} -O"
+        alias ${tabedit} "${nvr} --remote-tab"
+        alias ${nvim} "command nvim"
+        alias nvim "echo 'This shell is running in a Neovim termainal buffer. Use \'${nvim}\' to a nested instance of Neovim, otherwise use ${edit}, ${split}, ${vsplit}, or ${tabedit} to open files in the this Neovim instance.'"
+      else
+        alias ${edit} "nvim"
+      end
 
-  '' + ''
-    # END programs.neovim.extras config ------------------------------------------------------------
-  '';
+    ''
+    + ''
+      # END programs.neovim.extras config ------------------------------------------------------------
+    '';
 in
 {
   options.programs.neovim.extras = {
@@ -119,66 +134,69 @@ in
       };
     };
 
-    luaPackages = mkOption {
-      type = with types; listOf package;
-      default = [];
-      example = [ pkgs.luajitPackages.busted pkgs.luajitPackages.luafilesystem ];
+    defaultEditor = mkOption {
+      type = types.bool;
+      default = false;
       description = ''
-        Lua packages to make available in Neovim Lua environment.
-
-        Note that you cannot use this option if you are using
-        <option>programs.neovim.configure</option>, use <option>programs.neovim.extraConfig</option>
-        and <option>programs.neovim.plugins</option> instead.
+        When enabled, the <literal>EDITOR</literal> and <literal>VISUAL</literal> environment
+        variable are set to <command>nvr --remote-wait-silent</command>, and
+        <command>${nvr} -cc split --remote-wait +'set bufhidden=delete'</command> if the shell is
+        running inside a Neovim.
       '';
     };
   };
 
   config = mkIf config.programs.neovim.enable {
+    home.sessionVariables = mkIf cfg.defaultEditor {
+      EDITOR = "${nvr} --remote-wait-silent";
+      VISUAL = "${nvr} --remote-wait-silent";
+    };
+
     programs.fish.functions.nvim-sync-term-buffer-pwd = mkIf cfg.termBufferAutoChangeDir {
       body = ''
-        if test -n "$NVIM_LISTEN_ADDRESS"
+        if test -n "$NVIM"
           ${nvr} -c "let g:term_buffer_pwds.$fish_pid = '$PWD' | call Set_term_buffer_pwd() "
         end
       '';
       onVariable = "PWD";
     };
 
-    programs.neovim.extraConfig = mkIf cfg.termBufferAutoChangeDir ''
-      " START programs.neovim.extras.termBufferAutoChangeDir config --------------------------------
+    programs.neovim.extraConfig = mkIf (cfg.termBufferAutoChangeDir || cfg.defaultEditor) (
+      optionalString cfg.termBufferAutoChangeDir ''
+        " START programs.neovim.extras.termBufferAutoChangeDir config ------------------------------
 
-      " Dictionary used to track the PWD of terminal buffers. Keys should be PIDs and values are is
-      " PWD of the shell with that PID. These values are updated from the shell using `nvr`.
-      let g:term_buffer_pwds = {}
+        " Dictionary used to track the PWD of terminal buffers. Keys should be PIDs and values are
+        " is PWD of the shell with that PID. These values are updated from the shell using `nvr`.
+        let g:term_buffer_pwds = {}
 
-      " Function to call to update the PWD of the current terminal buffer.
-      function Set_term_buffer_pwd() abort
-        if &buftype == 'terminal' && exists('g:term_buffer_pwds[b:terminal_job_pid]')
-          execute 'lchd ' . g:term_buffer_pwds[b:terminal_job_pid]
-        endif
-      endfunction
+        " Function to call to update the PWD of the current terminal buffer.
+        function Set_term_buffer_pwd() abort
+          if &buftype == 'terminal' && exists('g:term_buffer_pwds[b:terminal_job_pid]')
+            execute 'lchd ' . g:term_buffer_pwds[b:terminal_job_pid]
+          endif
+        endfunction
 
-      " Sometimes the PWD the shell in a terminal buffer will change when in another buffer, so
-      " when entering a terminal buffer we update try to update it's PWD.
-      augroup NvimTermPwd
-      au!
-      au BufEnter * if &buftype == 'terminal' | call Set_term_buffer_pwd() | endif
-      augroup END
+        " Sometimes the PWD the shell in a terminal buffer will change when in another buffer, so
+        " when entering a terminal buffer we update try to update it's PWD.
+        augroup NvimTermPwd
+        au!
+        au BufEnter * if &buftype == 'terminal' | call Set_term_buffer_pwd() | endif
+        augroup END
 
-      " END programs.neovim.extras.termBufferAutoChangeDir config ----------------------------------
-    '';
+        " END programs.neovim.extras.termBufferAutoChangeDir config --------------------------------
+      ''
+      + optionalString cfg.defaultEditor ''
+        " START programs.neovim.extras.defaultEditor config ----------------------------------------
 
-    programs.fish.interactiveShellInit = mkIf
-      (cfg.termBufferAutoChangeDir || cfg.nvrAliases.enable) shellConfig;
+        let $EDITOR = '${nvr} -cc split -c "set bufhidden=delete" --remote-wait'
+        let $VISUAL = $EDITOR
 
-    programs.neovim.plugins = lib.singleton (
-      pkgs.vimUtils.buildVimPluginFrom2Nix {
-        name = "lua-env";
-        src = pkgs.linkFarm "neovim-lua-env" (
-          lib.forEach cfg.luaPackages (
-            p: { name = "lua"; path = "${p}/lib/lua/${p.lua.luaversion}"; }
-          )
-        );
-      }
+        " END programs.neovim.extras.defaultEditor config ------------------------------------------
+      ''
     );
+
+    programs.fish.interactiveShellInit = mkIf (
+      cfg.termBufferAutoChangeDir || cfg.nvrAliases.enable
+    ) shellConfig;
   };
 }

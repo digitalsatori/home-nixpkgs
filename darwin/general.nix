@@ -3,29 +3,22 @@
 {
   # Networking
   networking.dns = [
-    "1.1.1.1"
-    "8.8.8.8"
+    "1.1.1.1" # Cloudflare
+    "8.8.8.8" # Google
   ];
 
   # Apps
   # `home-manager` currently has issues adding them to `~/Applications`
   # Issue: https://github.com/nix-community/home-manager/issues/1341
   environment.systemPackages = with pkgs; [
-    kitty
     terminal-notifier
   ];
-  # https://github.com/nix-community/home-manager/issues/423
-  environment.variables = {
-    TERMINFO_DIRS = "${pkgs.kitty.terminfo.outPath}/share/terminfo";
-  };
-  programs.nix-index.enable = true;
 
   # Fonts
-  fonts.fontDir.enable = true;
-  fonts.fonts = with pkgs; [
-     recursive
-     (nerdfonts.override { fonts = [ "JetBrainsMono" ]; })
-   ];
+  fonts.packages = with pkgs; [
+    recursive
+    nerd-fonts.jetbrains-mono
+  ];
 
   # Keyboard
   system.keyboard.enableKeyMapping = true;
@@ -33,4 +26,11 @@
 
   # Add ability to used TouchID for sudo authentication
   security.pam.enableSudoTouchIdAuth = true;
+
+  # Store management
+  nix.gc.automatic = true;
+  nix.gc.interval.Hour = 3;
+  nix.gc.options = "--delete-older-than 15d";
+  nix.optimise.automatic = true;
+  nix.optimise.interval.Hour = 4;
 }

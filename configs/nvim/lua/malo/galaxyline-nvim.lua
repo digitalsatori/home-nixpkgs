@@ -19,6 +19,7 @@ gl.section.left = {
           c = s.term,
           i = s.pencil,
           n = s.vim,
+          R = '',
           t = s.term,
           v = s.ibar,
           V = s.ibar,
@@ -144,6 +145,7 @@ gl.section.right = {
 gl.section.short_line_left = {
   {
     ShortStatusLine = {
+      condition = condition.buffer_not_empty,
       provider = { const('  '), 'FileIcon', const(' '), 'FileName' },
       highlight = 'StatusLineSortStatusLine',
     }
